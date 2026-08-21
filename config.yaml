@@ -103,21 +103,3 @@ impact:
     relevance: 0.20           # 持仓/关注相关度
     theme: 0.15               # 主题热度
 
-
-# 新闻摘要（LLM 优先，失败回退规则模板）
-summary:
-  llm_min_impact: 0.4        # 影响分 >= 该值才调 LLM 摘要
-  llm_api_base: ""           # OpenAI 兼容（留空读 sentiment.llm_* / OPENAI_BASE_URL）
-  llm_api_key: ""            # 留空读 sentiment.llm_* / OPENAI_API_KEY
-  llm_model: ""              # 留空读 OPENAI_MODEL，默认 gpt-4o-mini
-  timeout: 20
-
-# 量化建议（确定性规则，与 LLM 无关）
-action:
-  threshold_long: 0.3
-  threshold_flat: -0.3
-  position_high: 0.6         # impact >= 该值 -> 3成以上
-  position_mid: 0.4          # impact >= 该值 -> 2~3成
-  position_text_high: "3成以上"
-  position_text_mid: "2~3成"
-  position_text_low: "1成以内"
