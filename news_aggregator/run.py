@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 from news_aggregator.fetchers import SOURCES, fetch_symbol_news  # noqa: E402
 from news_aggregator.sentiment import score_text  # noqa: E402
 from news_aggregator.tagger import tag  # noqa: E402
-from news_aggregator.push import send_wecom_markdown, get_webhook  # noqa: E402
+from news_aggregator.push import push_alert  # noqa: E402
 
 NEWS_DIR = ROOT / "news"
 HISTORY_PATH = NEWS_DIR / "sentiment_history.json"
@@ -256,10 +256,12 @@ def main() -> int:
     print(f"[agg] daily_sentiment -> {NEWS_DIR / 'daily_sentiment.json'}")
 
     if args.push:
-        send_wecom_markdown(get_webhook(), md)
+        push_alert(cfg, "财经新闻舆情日报", md)
 
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

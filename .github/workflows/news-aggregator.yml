@@ -26,6 +26,7 @@ jobs:
         run: python news_aggregator/run.py --push
         env:
           WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
 
       - name: Commit news data
         run: |
@@ -38,3 +39,4 @@ jobs:
             git commit -m "chore: update news aggregation $(date +%F)"
             git push
           fi
+
