@@ -186,40 +186,164 @@ def fetch_quiver():
 
 
 def fetch_bargo():
-    base = os.environ.get("BARGO_BASE_URL", "").strip()
-    if not base:
-        return []
+    base = os.environ.get("BARGO_BASE_URL", "https://www.bargo.ai/free-apis/congress/v1").strip()
     key = os.environ.get("BARGO_API_KEY", "").strip()
     import requests
     headers = dict(UA)
     if key:
-        headers["Authorization"] = f"Bearer {key}"
+        headers["X-API-Key"] = key
     try:
         r = requests.get(f"{base.rstrip('/')}/trades", headers=headers,
                          params={"limit": 50}, timeout=15)
         if r.status_code != 200:
             return []
         data = r.json()
-        rows = data if isinstance(data, list) else (data.get("data") or data.get("trades") or [])
+        rows = data.get("trades") or data.get("data") or []
     except Exception:  # noqa: BLE001
         return []
     items = []
     for rec in rows:
-        ticker = str(rec.get("ticker") or rec.get("Ticker") or "").upper()
-        pol = str(rec.get("member") or rec.get("politician")
-                  or rec.get("Member") or "").strip()
-        side = str(rec.get("transaction_type") or rec.get("type")
-                   or rec.get("Transaction") or "").strip()
-        amount = rec.get("amount") or rec.get("Amount") or ""
-        d = rec.get("filed_date") or rec.get("date") or rec.get("Date")
+        ticker = str(rec.get("ticker") or "").upper()
+        pol = str(rec.get("member") or "").strip()
+        raw_type = str(rec.get("type") or "").lower()
+        side = "买入" if raw_type == "purchase" else ("卖出" if raw_type == "sale" else raw_type)
+        amount = rec.get("amount_range") or rec.get("amount") or ""
+        d = rec.get("transaction_date") or rec.get("disclosure_date")
         dt = _parse_dt(d)
-        title = f"{pol} {side} {ticker} ${amount}".strip() if ticker else f"{pol} {side}".strip()
+        title = f"{pol} {side} {ticker} {amount}".strip()
         obj = _mk(dt, "Bargo国会交易", title, "", "", lang="en",
                   kind="congress_trade", ticker=ticker, politician=pol)
         if obj:
             items.append(obj)
     return items
+def fetch_fed():
+    """美联储官方新闻/声明 RSS。"""
+    return _fetch_rss("https://www.federalreserve.gov/feeds/press_all.xml", "美联储Fed", "en")
 
+
+def fetch_sec_edgar():
+    """SEC EDGAR 最新 8-K 申报（Atom）。"""
+    import requests
+    url = "https://www.sec.gov/cgi-bin/browse-edgar"
+    params = {"action": "getcurrent", "type": "8-K", "dateb": "",
+              "owner": "include", "count": "40", "output": "atom"}
+    headers = {"User-Agent": "chaogu-research contact@example.com"}
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        r.raise_for_status()
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        root = ET.fromstring(r.content)
+        items = []
+        for e in root.findall("a:entry", ns):
+            title = (e.findtext("a:title", default="") or "").strip()
+            updated = e.findtext("a:updated", default="") or ""
+            link = ""
+            ln = e.find("a:link", ns)
+            if ln is not None:
+                link = ln.get("href") or ""
+            dt = _parse_dt(updated)
+            obj = _mk(dt, "SEC EDGAR", title, "", link, lang="en")
+            if obj:
+                items.append(obj)
+        return items
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def fetch_fred():
+    """FRED 宏观序列最新值：优先用 FRED_API_KEY，否则用免 key 的 CSV 端点。"""
+    key = os.environ.get("FRED_API_KEY", "").strip()
+    series = [("GDP", "GDP"), ("CPIAUCSL", "CPI"), ("PPIACO", "PPI"),
+              ("UNRATE", "失业率"), ("PCE", "PCE"), ("DGS10", "10Y美债")]
+    items = []
+    if key:
+        import requests
+        for sid, label in series:
+            try:
+                r = requests.get("https://api.stlouisfed.org/fred/series/observations",
+                                 params={"series_id": sid, "api_key": key,
+                                         "file_type": "json", "sort_order": "desc", "limit": "1"},
+                                 timeout=12)
+                obs = r.json().get("observations", [])
+                if obs:
+                    val = obs[0].get("value")
+                    d = obs[0].get("date")
+                    dt = _parse_dt(d)
+                    title = f"FRED {label}({sid}) 最新值 {val}"
+                    obj = _mk(dt, "FRED宏观数据", title, "",
+                              f"https://fred.stlouisfed.org/series/{sid}", lang="en")
+                    if obj:
+                        items.append(obj)
+            except Exception:  # noqa: BLE001
+                continue
+        return items
+    # 免 key CSV
+    import requests
+    for sid, label in series:
+        try:
+            r = requests.get("https://fred.stlouisfed.org/graph/fredgraph.csv",
+                             params={"id": sid}, headers=UA, timeout=15)
+            lines = r.text.strip().splitlines()
+            if len(lines) >= 2:
+                last = lines[-1].split(",")
+                d, val = last[0], last[1] if len(last) > 1 else ""
+                dt = _parse_dt(d)
+                title = f"FRED {label}({sid}) 最新值 {val}"
+                obj = _mk(dt, "FRED宏观数据", title, "",
+                          f"https://fred.stlouisfed.org/series/{sid}", lang="en")
+                if obj:
+                    items.append(obj)
+        except Exception:  # noqa: BLE001
+            continue
+    return items
+def fetch_northbound():
+    """沪深港通北向资金（akshare，best-effort）。"""
+    import akshare as ak
+    try:
+        df = ak.stock_hsgt_fund_flow_summary_em()
+        if df is None or df.empty:
+            return []
+        row = df.iloc[0]
+        cols = {c: str(c) for c in df.columns}
+        text = " | ".join(f"{k}: {row[k]}" for k in df.columns[:6])
+        now = datetime.now(TZ)
+        obj = _mk(now, "北向资金", "沪深港通资金流", text, "", lang="zh")
+        return [obj] if obj else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _make_gnews_fetcher(name, query, lang, hl, gl, ceid):
+    def _f():
+        return _gnews_rss(query, name, lang=lang, hl=hl, gl=gl, ceid=ceid)
+    _f.__name__ = f"fetch_{name}"
+    return _f
+
+
+_GNEWS = [
+    ("欧洲央行ECB", "European Central Bank rate decision", "en", "en-US", "US", "US:en"),
+    ("日本央行BOJ", "Bank of Japan rate decision", "en", "en-US", "US", "US:en"),
+    ("中国人民银行", "中国人民银行 LPR OR 降准 OR 降息 OR 社融", "zh", "zh-CN", "CN", "CN:zh-Hans"),
+    ("英国央行BOE", "Bank of England rate decision", "en", "en-US", "US", "US:en"),
+    ("美国非农/CPI", "nonfarm payrolls OR CPI inflation BLS", "en", "en-US", "US", "US:en"),
+    ("美国GDP/PCE", "GDP OR PCE BEA", "en", "en-US", "US", "US:en"),
+    ("ISM PMI", "ISM manufacturing PMI", "en", "en-US", "US", "US:en"),
+    ("EIA原油库存", "EIA crude oil inventory", "en", "en-US", "US", "US:en"),
+    ("OPEC/IEA", "OPEC OR IEA oil report", "en", "en-US", "US", "US:en"),
+    ("中国宏观数据", "中国 GDP OR CPI OR PMI OR 进出口 OR 社融", "zh", "zh-CN", "CN", "CN:zh-Hans"),
+    ("半导体行业", "SEMI semiconductor equipment OR WSTS", "en", "en-US", "US", "US:en"),
+    ("航运BDI", "Baltic Dry Index shipping", "en", "en-US", "US", "US:en"),
+    ("CFTC持仓", "CFTC commitments of traders", "en", "en-US", "US", "US:en"),
+    ("VIX波动率", "VIX CBOE volatility", "en", "en-US", "US", "US:en"),
+    ("AAII情绪", "AAII investor sentiment survey", "en", "en-US", "US", "US:en"),
+    ("美国国务院", "site:state.gov", "en", "en-US", "US", "US:en"),
+    ("IMF/世界银行", "IMF OR World Bank outlook", "en", "en-US", "US", "US:en"),
+]
+
+_GNEWS_FETCHERS = {
+    name: _make_gnews_fetcher(name, q, lang, hl, gl, ceid)
+    for name, q, lang, hl, gl, ceid in _GNEWS
+}
 
 # ================= 中文快讯（辅） =================
 
@@ -322,121 +446,6 @@ def fetch_policy():
             items.append(obj)
     return items
 
-
-# ================= 央行 / 宏观 / 行业 / 公司 / 市场内部 / 地缘 =================
-
-def fetch_fed():
-    """美联储官方新闻/声明 RSS。"""
-    return _fetch_rss("https://www.federalreserve.gov/feeds/press_all.xml", "美联储Fed", "en")
-
-
-def fetch_sec_edgar():
-    """SEC EDGAR 最新 8-K 申报（Atom）。"""
-    import requests
-    url = "https://www.sec.gov/cgi-bin/browse-edgar"
-    params = {"action": "getcurrent", "type": "8-K", "dateb": "",
-              "owner": "include", "count": "40", "output": "atom"}
-    headers = {"User-Agent": "chaogu-research contact@example.com"}
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=15)
-        r.raise_for_status()
-        ns = {"a": "http://www.w3.org/2005/Atom"}
-        root = ET.fromstring(r.content)
-        items = []
-        for e in root.findall("a:entry", ns):
-            title = (e.findtext("a:title", default="") or "").strip()
-            updated = e.findtext("a:updated", default="") or ""
-            link = ""
-            ln = e.find("a:link", ns)
-            if ln is not None:
-                link = ln.get("href") or ""
-            dt = _parse_dt(updated)
-            obj = _mk(dt, "SEC EDGAR", title, "", link, lang="en")
-            if obj:
-                items.append(obj)
-        return items
-    except Exception:  # noqa: BLE001
-        return []
-
-
-def fetch_fred():
-    """FRED 宏观序列最新值（需 FRED_API_KEY）。"""
-    key = os.environ.get("FRED_API_KEY", "").strip()
-    if not key:
-        return []
-    import requests
-    series = [("GDP", "GDP"), ("CPIAUCSL", "CPI"), ("PPIACO", "PPI"),
-              ("UNRATE", "失业率"), ("PCE", "PCE"), ("DGS10", "10Y美债")]
-    items = []
-    for sid, label in series:
-        try:
-            r = requests.get("https://api.stlouisfed.org/fred/series/observations",
-                             params={"series_id": sid, "api_key": key,
-                                     "file_type": "json", "sort_order": "desc", "limit": "1"},
-                             timeout=12)
-            obs = r.json().get("observations", [])
-            if obs:
-                val = obs[0].get("value")
-                d = obs[0].get("date")
-                dt = _parse_dt(d)
-                title = f"FRED {label}({sid}) 最新值 {val}"
-                obj = _mk(dt, "FRED宏观数据", title, "",
-                          f"https://fred.stlouisfed.org/series/{sid}", lang="en")
-                if obj:
-                    items.append(obj)
-        except Exception:  # noqa: BLE001
-            continue
-    return items
-
-
-def fetch_northbound():
-    """沪深港通北向资金（akshare，best-effort）。"""
-    import akshare as ak
-    try:
-        df = ak.stock_hsgt_fund_flow_summary_em()
-        if df is None or df.empty:
-            return []
-        row = df.iloc[0]
-        cols = {c: str(c) for c in df.columns}
-        text = " | ".join(f"{k}: {row[k]}" for k in df.columns[:6])
-        now = datetime.now(TZ)
-        obj = _mk(now, "北向资金", "沪深港通资金流", text, "", lang="zh")
-        return [obj] if obj else []
-    except Exception:  # noqa: BLE001
-        return []
-
-
-def _make_gnews_fetcher(name, query, lang, hl, gl, ceid):
-    def _f():
-        return _gnews_rss(query, name, lang=lang, hl=hl, gl=gl, ceid=ceid)
-    _f.__name__ = f"fetch_{name}"
-    return _f
-
-
-_GNEWS = [
-    ("欧洲央行ECB", "European Central Bank rate decision", "en", "en-US", "US", "US:en"),
-    ("日本央行BOJ", "Bank of Japan rate decision", "en", "en-US", "US", "US:en"),
-    ("中国人民银行", "中国人民银行 LPR OR 降准 OR 降息 OR 社融", "zh", "zh-CN", "CN", "CN:zh-Hans"),
-    ("英国央行BOE", "Bank of England rate decision", "en", "en-US", "US", "US:en"),
-    ("美国非农/CPI", "nonfarm payrolls OR CPI inflation BLS", "en", "en-US", "US", "US:en"),
-    ("美国GDP/PCE", "GDP OR PCE BEA", "en", "en-US", "US", "US:en"),
-    ("ISM PMI", "ISM manufacturing PMI", "en", "en-US", "US", "US:en"),
-    ("EIA原油库存", "EIA crude oil inventory", "en", "en-US", "US", "US:en"),
-    ("OPEC/IEA", "OPEC OR IEA oil report", "en", "en-US", "US", "US:en"),
-    ("中国宏观数据", "中国 GDP OR CPI OR PMI OR 进出口 OR 社融", "zh", "zh-CN", "CN", "CN:zh-Hans"),
-    ("半导体行业", "SEMI semiconductor equipment OR WSTS", "en", "en-US", "US", "US:en"),
-    ("航运BDI", "Baltic Dry Index shipping", "en", "en-US", "US", "US:en"),
-    ("CFTC持仓", "CFTC commitments of traders", "en", "en-US", "US", "US:en"),
-    ("VIX波动率", "VIX CBOE volatility", "en", "en-US", "US", "US:en"),
-    ("AAII情绪", "AAII investor sentiment survey", "en", "en-US", "US", "US:en"),
-    ("美国国务院", "site:state.gov", "en", "en-US", "US", "US:en"),
-    ("IMF/世界银行", "IMF OR World Bank outlook", "en", "en-US", "US", "US:en"),
-]
-
-_GNEWS_FETCHERS = {
-    name: _make_gnews_fetcher(name, q, lang, hl, gl, ceid)
-    for name, q, lang, hl, gl, ceid in _GNEWS
-}
 
 SOURCES = [
     # 一手新闻社 / 政府官网
