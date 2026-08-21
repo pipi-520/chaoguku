@@ -1,0 +1,27 @@
+name: Bug 报告
+description: 提交一个 bug
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: desc
+    attributes:
+      label: 问题描述
+      description: 发生了什么？
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 运行 ... 2. ..."
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      placeholder: "Python 3.12 / Windows 11 / akshare 1.18"
+  - type: textarea
+    id: log
+    attributes:
+      label: 报错/日志
+      render: text

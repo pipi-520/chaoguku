@@ -1,0 +1,17 @@
+name: 功能建议
+description: 提一个功能需求
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 需求描述
+      description: 你希望增加什么能力？解决什么问题？
+    validations:
+      required: true
+  - type: textarea
+    id: alt
+    attributes:
+      label: 备选方案
+      description: 是否有替代思路？
