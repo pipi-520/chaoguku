@@ -1,6 +1,6 @@
 # 贡献指南 / Contributing
 
-感谢你对 chaogu 的关注！欢迎通过以下方式参与：
+感谢你对 FlashQuant 的关注！欢迎通过以下方式参与：
 
 ## 如何贡献
 

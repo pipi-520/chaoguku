@@ -1,16 +1,16 @@
 <div align="center">
 
-# 📈 chaogu · 炒股量化工具箱
+# ⚡ FlashQuant · 快讯驱动的量化工具箱
 
 **多源新闻舆情聚合 · 秒级事件监测 · 新闻情绪量化策略**
 
 > 聚合 35+ 金融数据源，用影响分捕捉「影响股价最快的信息」，基于 vnpy 跑通回测与模拟盘。
 
-[![GitHub stars](https://img.shields.io/github/stars/pipi-520/chaoguku?style=flat-square&logo=github&color=gold)](https://github.com/pipi-520/chaoguku/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/pipi-520/chaoguku?style=flat-square&logo=github)](https://github.com/pipi-520/chaoguku/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/pipi-520/FlashQuant?style=flat-square&logo=github&color=gold)](https://github.com/pipi-520/FlashQuant/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/pipi-520/FlashQuant?style=flat-square&logo=github)](https://github.com/pipi-520/FlashQuant/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![GitHub last commit](https://img.shields.io/github/last-commit/pipi-520/chaoguku?style=flat-square)](https://github.com/pipi-520/chaoguku/commits/master)
+[![GitHub last commit](https://img.shields.io/github/last-commit/pipi-520/FlashQuant?style=flat-square)](https://github.com/pipi-520/FlashQuant/commits/master)
 
 [中文](README.md) · [English](README_EN.md)
 
@@ -20,7 +20,7 @@
 
 ## ✨ 这是什么
 
-`chaogu` 是一套面向 A 股 + 美股的开源量化研究工具，核心解决一个问题：
+`FlashQuant` 是一套面向 A 股 + 美股的开源量化研究工具，核心解决一个问题：
 
 > **如何最快地捕捉「影响股价的新闻」，并把它变成可回测、可执行的信号？**
 
@@ -109,7 +109,7 @@ python scripts/predictive_power.py    # 事件预测力回看
 ## 📂 项目结构
 
 ```
-chaogu/
+FlashQuant/
 ├─ news_aggregator/          # 多源聚合 + 实时监测核心
 │  ├─ fetchers.py            #   35+ 数据源抓取
 │  ├─ sentiment.py           #   lexicon / finbert / llm 情绪后端
@@ -173,7 +173,7 @@ chaogu/
 
 ## ⭐ Star 历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=pipi-520/chaoguku&type=Date)](https://star-history.com/#pipi-520/chaoguku&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=pipi-520/FlashQuant&type=Date)](https://star-history.com/#pipi-520/FlashQuant&Date)
 
 ## ⚠️ 免责声明
 

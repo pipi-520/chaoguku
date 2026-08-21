@@ -1,16 +1,16 @@
 <div align="center">
 
-# 📈 chaogu · Quant Toolkit for News-Driven Trading
+# ⚡ FlashQuant · News-Driven Quant Toolkit
 
 **Multi-source news aggregation · Real-time event monitoring · News-sentiment quantitative strategy**
 
 > Aggregate 35+ financial data sources, capture market-moving news with an impact score, and run backtest + paper trading on vnpy.
 
-[![GitHub stars](https://img.shields.io/github/stars/pipi-520/chaoguku?style=flat-square&logo=github&color=gold)](https://github.com/pipi-520/chaoguku/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/pipi-520/chaoguku?style=flat-square&logo=github)](https://github.com/pipi-520/chaoguku/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/pipi-520/FlashQuant?style=flat-square&logo=github&color=gold)](https://github.com/pipi-520/FlashQuant/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/pipi-520/FlashQuant?style=flat-square&logo=github)](https://github.com/pipi-520/FlashQuant/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![GitHub last commit](https://img.shields.io/github/last-commit/pipi-520/chaoguku?style=flat-square)](https://github.com/pipi-520/chaoguku/commits/master)
+[![GitHub last commit](https://img.shields.io/github/last-commit/pipi-520/FlashQuant?style=flat-square)](https://github.com/pipi-520/FlashQuant/commits/master)
 
 [English](README_EN.md) · [中文](README.md)
 
@@ -20,7 +20,7 @@
 
 ## ✨ What is this
 
-`chaogu` is an open-source quantitative research toolkit for China A-shares and US stocks, focused on one question:
+`FlashQuant` is an open-source quantitative research toolkit for China A-shares and US stocks, focused on one question:
 
 > **How to capture market-moving news as fast as possible, and turn it into backtestable, executable signals?**
 
@@ -109,7 +109,7 @@ python scripts/predictive_power.py    # event predictive-power study
 ## 📂 Project Structure
 
 ```
-chaogu/
+FlashQuant/
 ├─ news_aggregator/          # multi-source aggregation + real-time monitoring core
 │  ├─ fetchers.py            #   35+ data source fetchers
 │  ├─ sentiment.py           #   lexicon / finbert / llm sentiment backends
@@ -173,7 +173,7 @@ Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=pipi-520/chaoguku&type=Date)](https://star-history.com/#pipi-520/chaoguku&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=pipi-520/FlashQuant&type=Date)](https://star-history.com/#pipi-520/FlashQuant&Date)
 
 ## ⚠️ Disclaimer
 

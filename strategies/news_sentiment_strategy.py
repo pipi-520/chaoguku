@@ -32,7 +32,7 @@ def load_sentiment(path: str) -> dict:
 class NewsSentimentStrategy(CtaTemplate):
     """"""
 
-    author: str = "chaogu"
+    author: str = "FlashQuant"
 
     threshold: float = 0.3
     threshold_flat: float = -0.3
