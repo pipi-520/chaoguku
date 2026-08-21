@@ -1,0 +1,63 @@
+# 量化策略配置（新闻情绪驱动）
+# 注意：仅用于学习研究，不构成投资建议。
+
+data:
+  start_date: "20240101"     # 历史数据起始日 YYYYMMDD
+  end_date: "20260821"       # 历史数据截止日 YYYYMMDD
+
+symbols:
+  - code: "600519"           # akshare 用代码（A股为6位代码）
+    symbol: "600519"         # vnpy 用 symbol
+    exchange: "SSE"          # vnpy Exchange 枚举值
+    market: "cn"
+    name: "贵州茅台"
+    fixed_size: 100          # 每次开仓股数
+
+  - code: "000858"
+    symbol: "000858"
+    exchange: "SZSE"
+    market: "cn"
+    name: "五粮液"
+    fixed_size: 100
+
+  - code: "105.AAPL"         # 美股使用东财 secid（105=纳斯达克）
+    symbol: "AAPL"
+    exchange: "NASDAQ"
+    market: "us"
+    name: "苹果"
+    fixed_size: 100
+
+  - code: "105.MSFT"
+    symbol: "MSFT"
+    exchange: "NASDAQ"
+    market: "us"
+    name: "微软"
+    fixed_size: 100
+
+sentiment:
+  threshold_long: 0.3        # 情绪分 >= 该值则开多
+  threshold_flat: -0.3       # 情绪分 <= 该值则平多（只做多头，默认空仓）
+
+backtest:
+  start_date: "20240101"
+  end_date: "20260821"
+  capital: 1000000           # 初始资金
+  rate: 0.0003               # 佣金费率（按成交额）
+  slippage: 0.01             # 滑点（每股/每份）
+  pricetick: 0.01            # 最小价格变动
+  use_synthetic_sentiment: true   # 回测用合成情绪序列(演示策略机制)；false 用真实新闻情绪
+
+
+news:
+  # 启用的快讯源（留空则全部启用）
+  enabled_sources:
+    - 财联社
+    - 东财全球资讯
+    - 新浪7x24
+    - 同花顺7x24
+    - 富途牛牛
+    - 华尔街见闻
+    - 金十快讯
+    - 政策公告
+  # 企业微信机器人 webhook：留空则读取环境变量 WECOM_WEBHOOK
+  wecom_webhook: ""

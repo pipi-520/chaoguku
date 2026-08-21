@@ -1,0 +1,11 @@
+vnpy
+vnpy_ctastrategy
+vnpy_ctabacktester
+vnpy_paperaccount
+vnpy_sqlite
+vnpy_datamanager
+akshare
+pandas
+numpy
+pyyaml
+yfinance
