@@ -15,8 +15,10 @@ if [ ! -d "$APP_DIR/.venv" ]; then
 fi
 
 echo "[3/4] installing deps"
+REQ="$APP_DIR/requirements-server.txt"
+[ -f "$REQ" ] || REQ="$APP_DIR/requirements.txt"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
-"$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
+"$APP_DIR/.venv/bin/pip" install -r "$REQ"
 
 echo "[4/4] installing systemd unit"
 sed "s|/opt/chaogu|$APP_DIR|g" "$APP_DIR/deploy/chaogu-monitor.service" \
@@ -26,3 +28,4 @@ systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
 echo "done. status: systemctl status $SERVICE_NAME"
+

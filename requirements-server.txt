@@ -1,0 +1,8 @@
+# 云端常驻服务（monitor.py）最小依赖。
+# 与 requirements.txt 的区别：不含 vnpy/yfinance 等回测用重型库，
+# 云服务器部署更快、占用更小。回测请在本地用 requirements.txt。
+akshare
+pandas
+numpy
+pyyaml
+requests

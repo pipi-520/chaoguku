@@ -1,0 +1,14 @@
+[Unit]
+Description=chaogu daily news aggregation + report push
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/chaogu
+ExecStart=/opt/chaogu/.venv/bin/python news_aggregator/run.py --push
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/opt/chaogu/.env
+
+[Install]
+WantedBy=multi-user.target

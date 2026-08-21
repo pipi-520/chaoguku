@@ -12,3 +12,4 @@ news/boards_cache.json
 .env.*
 *.local
 
+!.env.example

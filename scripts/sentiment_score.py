@@ -23,7 +23,7 @@ DATA_DIR = ROOT / "data"
 NEWS_DIR = ROOT / "news"
 
 try:
-    from news_aggregator.sentiment import CN_POS, CN_NEG, score_text
+    from news_aggregator.sentiment import CN_POS, CN_NEG, score_text, configure_backend
 except ImportError:  # pragma: no cover - 独立运行时的最小回退
     CN_POS = ["利好", "增长", "上涨", "涨停", "突破", "超预期", "回购", "增持"]
     CN_NEG = ["利空", "下跌", "跌停", "亏损", "减持", "违规", "处罚", "立案"]
@@ -35,6 +35,9 @@ except ImportError:  # pragma: no cover - 独立运行时的最小回退
         p = sum(t.count(w) for w in CN_POS)
         n = sum(t.count(w) for w in CN_NEG)
         return (p - n) / (p + n + 1) if p + n else 0.0
+
+    def configure_backend(cfg):  # pragma: no cover
+        pass
 
 
 def load_config() -> dict:
@@ -167,6 +170,7 @@ def build_market_daily(history, single) -> pd.DataFrame:
 
 def main() -> int:
     cfg = load_config()
+    configure_backend(cfg)
     DATA_DIR.mkdir(exist_ok=True)
 
     history = load_history()
@@ -219,3 +223,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

@@ -4,7 +4,7 @@
     .venv/Scripts/python.exe news_aggregator/run.py [--date YYYYMMDD] [--push] [--rebuild-history]
 
 输出：
-    news/raw/{date}.jsonl            原始新闻（每行一条 JSON）
+    news/raw/{date}.jsonl            原始新闻（每条一行 JSON，含 impact/sentiment）
     news/daily_sentiment.json        当日情绪分（市场 + 个股，快照）
     news/sentiment_history.json      历史情绪分（按日期累积，可回测）
     news/report/{date}.md            日报
@@ -21,10 +21,11 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from news_aggregator.fetchers import SOURCES, fetch_symbol_news, filter_recent  # noqa: E402
-from news_aggregator.sentiment import score_text  # noqa: E402
+from news_aggregator.fetchers import SOURCES, fetch_symbol_news, filter_recent, apply_primary_keys  # noqa: E402
+from news_aggregator.sentiment import score_text, configure_backend  # noqa: E402
 from news_aggregator.tagger import tag  # noqa: E402
 from news_aggregator.push import push_alert  # noqa: E402
+from news_aggregator.impact import compute_impact, DEFAULT_WEIGHTS  # noqa: E402
 
 # Windows 控制台编码兼容
 if hasattr(sys.stdout, 'reconfigure'):
@@ -37,6 +38,14 @@ HISTORY_PATH = NEWS_DIR / "sentiment_history.json"
 def load_config() -> dict:
     with open(ROOT / "config.yaml", "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_themes(path: str) -> list:
+    if not pathlib.Path(path).is_absolute():
+        path = str(ROOT / path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return (data or {}).get("themes") or []
 
 
 def fetch_all(enabled=None):
@@ -72,7 +81,8 @@ def compute_daily(items):
     market = {}
     per_sym = {}
     for it in items:
-        if it.get("lang") == "en" or it.get("kind") != "news":
+        # 英文新闻同样纳入情绪（只排除非新闻类型：国会/内部人交易等）
+        if it.get("kind") != "news":
             continue
         d = it["date"]
         sc = score_text(f"{it.get('title', '')} {it.get('content', '')}")
@@ -140,7 +150,7 @@ def build_report(day: str, items, stats, market, sym_out) -> str:
     lines.append(f"# 财经新闻舆情日报 {day}")
     lines.append("")
     lines.append(f"> 生成时间：{datetime.now():%Y-%m-%d %H:%M:%S}")
-    lines.append("> 数据来源：财联社 / 东财全球资讯 / 新浪7x24 / 同花顺7x24 / 富途牛牛 / 华尔街见闻 / 金十快讯 / 政策公告")
+    lines.append("> 数据来源：多源快讯 + 英文一手源（按影响分排序）")
     lines.append("")
     lines.append("## 数据源统计")
     lines.append("")
@@ -175,17 +185,18 @@ def build_report(day: str, items, stats, market, sym_out) -> str:
             lines.append(f"| {s} | {dd[latest]:+.3f} ({latest}) |")
         lines.append("")
 
-    # 热门新闻
-    scored = []
-    for it in items:
-        sc = score_text(f"{it.get('title', '')} {it.get('content', '')}")
-        scored.append((abs(sc), sc, it))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    lines.append("## 情绪最强新闻 Top 15")
+    # 影响最强新闻（按影响分排序，已在 main 中计算好）
+    ranked = sorted(items, key=lambda x: x.get("impact", 0.0), reverse=True)
+    lines.append("## 影响最强新闻 Top 15")
     lines.append("")
-    for _, sc, it in scored[:15]:
-        text = (it.get("title") or it.get("content") or "")[:80]
-        lines.append(f"- [{it.get('source')}] ({sc:+.2f}) {text}")
+    lines.append("| 影响分 | 情绪 | 来源 | 标题 |")
+    lines.append("|---|---|---|---|")
+    for it in ranked[:15]:
+        text = (it.get("title") or it.get("content") or "").strip()
+        text = text[:60].replace("|", "\\|") + ("…" if len(text) > 60 else "")
+        imp = it.get("impact", 0.0)
+        sc = it.get("sentiment", score_text(f"{it.get('title', '')} {it.get('content', '')}"))
+        lines.append(f"| {imp:.3f} | {sc:+.2f} | {it.get('source')} | {text} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -207,7 +218,16 @@ def main() -> int:
         return 0
 
     cfg = load_config()
+    apply_primary_keys(cfg.get("primary") or {})
+    configure_backend(cfg)
     enabled = (cfg.get("news") or {}).get("enabled_sources") or None
+    impact_cfg = (cfg.get("impact") or {})
+    weights = impact_cfg.get("weights") or DEFAULT_WEIGHTS
+    window_minutes = int(impact_cfg.get("window_minutes", 60))
+    burst_cap = int(impact_cfg.get("burst_cap", 4))
+    themes_path = impact_cfg.get("themes_path", "news_aggregator/themes.yaml")
+
+    themes = load_themes(themes_path)
 
     items, stats = fetch_all(enabled)
 
@@ -224,7 +244,8 @@ def main() -> int:
     items = dedupe(items)
     items = filter_recent(items, days=30)
     items = tag(items, cfg["symbols"])
-    print(f"[agg] 去重后 {len(items)} 条")
+    items = compute_impact(items, themes, weights, window_minutes, burst_cap)
+    print(f"[agg] 去重后 {len(items)} 条，已按影响分排序")
 
     NEWS_DIR.mkdir(exist_ok=True)
     raw_dir = NEWS_DIR / "raw"
@@ -270,9 +291,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-
 
 

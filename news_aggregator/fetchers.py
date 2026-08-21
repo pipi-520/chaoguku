@@ -531,3 +531,23 @@ def filter_recent(items, days: int = 30):
     return [it for it in items if (it.get("date") or "") >= cutoff]
 
 
+
+
+def apply_primary_keys(primary: dict) -> None:
+    """把 config['primary'] 里的密钥注入环境变量（env 已存在则优先，不覆盖）。
+
+    供 run.py / monitor.py 在 load_config 后调用，使 config.yaml 里的
+    AP/国会/Quiver/Bargo/FRED 密钥无需额外设环境变量即可生效。
+    """
+    mapping = {
+        "ap_api_key": "AP_API_KEY",
+        "congress_api_key": "CONGRESS_API_KEY",
+        "quiver_token": "QUIVER_TOKEN",
+        "bargo_base_url": "BARGO_BASE_URL",
+        "bargo_api_key": "BARGO_API_KEY",
+        "fred_api_key": "FRED_API_KEY",
+    }
+    for k, env in mapping.items():
+        v = str(primary.get(k) or "").strip()
+        if v and not os.environ.get(env):
+            os.environ[env] = v

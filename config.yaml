@@ -37,6 +37,12 @@ symbols:
 sentiment:
   threshold_long: 0.3        # 情绪分 >= 该值则开多
   threshold_flat: -0.3       # 情绪分 <= 该值则平多（只做多头，默认空仓）
+  backend: lexicon           # 情绪打分后端：lexicon | finbert | llm
+  finbert_model: "yiyanghkust/finbert-tone"   # finbert 后端用（如 baptle/FinBERT_market_based）
+  finbert_device: ""         # 可选：cpu / cuda / 0（空=自动）
+  llm_api_base: ""           # llm 后端用（OpenAI 兼容，留空读 OPENAI_BASE_URL）
+  llm_api_key: ""            # 留空读 OPENAI_API_KEY
+  llm_model: ""              # 留空读 OPENAI_MODEL，默认 gpt-4o-mini
 
 backtest:
   start_date: "20240101"
@@ -59,6 +65,7 @@ monitor:
   themes_path: "news_aggregator/themes.yaml"
   top_constituents: 5            # 告警里展示每个板块前几只成分股
   board_cache_refresh_hours: 24  # 板块成分股缓存刷新周期
+  impact_min: 0.0               # 影响分告警阈值（>0 则只推高影响主题告警）
   # 推送开关（密钥留空则读取对应环境变量，见 push.py）
   push:
     wecom: true
@@ -84,4 +91,15 @@ primary:
 politicians:
   - Nancy Pelosi
 
+# 影响分模型（news_aggregator/impact.py）：综合来源权威度/爆发系数/情绪强度/持仓相关性/主题热度
+impact:
+  window_minutes: 60          # 突发检测时间窗（分钟）
+  burst_cap: 4                # 相似条数达到该值即 burst=1
+  themes_path: "news_aggregator/themes.yaml"
+  weights:
+    authority: 0.20           # 来源权威度
+    burst: 0.20               # 爆发系数（多源同时报道）
+    intensity: 0.25           # 情绪强度 |score|
+    relevance: 0.20           # 持仓/关注相关度
+    theme: 0.15               # 主题热度
 

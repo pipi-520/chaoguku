@@ -1,0 +1,9 @@
+[Unit]
+Description=Run chaogu daily aggregation on weekdays 18:30 (server local time)
+
+[Timer]
+OnCalendar=Mon..Fri 18:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

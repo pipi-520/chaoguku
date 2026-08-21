@@ -1,4 +1,4 @@
-"""实时事件监测器：秒级轮询快讯源 -> 事件词匹配 -> 板块/个股映射 -> 多通道告警。
+"""实时事件监测器：秒级轮询快讯源 -> 事件词匹配 -> 影响分排序 -> 板块/个股映射 -> 多通道告警。
 
 用法（在项目根目录执行）：
     .venv/Scripts/python.exe news_aggregator/monitor.py               # 常驻轮询
@@ -8,29 +8,30 @@
     .venv/Scripts/python.exe news_aggregator/monitor.py --no-boards    # 跳过板块缓存（更快/离线）
 
 说明：
-- 复用 news_aggregator/fetchers.py 的多源快讯、sentiment.py 情绪打分、push.py 推送。
+- 复用 news_aggregator/fetchers.py 的多源快讯、sentiment.py 情绪打分、
+  impact.py 影响分排序、push.py 推送。
 - seen.json 持久化去重：重启不重复告警；首次运行只建立基线、不告警历史旧闻。
+- 新增：按影响分降序告警，低于 monitor.impact_min 的主题告警会被过滤。
 - 只告警，不自动下单。
 """
 
 import argparse
 import json
 import pathlib
-import re
 import sys
 import time
-from datetime import datetime
 
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from news_aggregator.fetchers import SOURCES, filter_recent  # noqa: E402
-from news_aggregator.sentiment import score_text  # noqa: E402
+from news_aggregator.fetchers import SOURCES, filter_recent, apply_primary_keys  # noqa: E402
+from news_aggregator.sentiment import score_text, configure_backend  # noqa: E402
 from news_aggregator.push import push_alert  # noqa: E402
 from news_aggregator.run import compute_daily, load_history, save_history, upsert_history  # noqa: E402
 from news_aggregator.boards import get_board_cache  # noqa: E402
+from news_aggregator.impact import keyword_match, match_themes, compute_impact  # noqa: E402
 
 # Windows 控制台编码兼容（避免 emoji 等字符导致 print 崩溃）
 if hasattr(sys.stdout, "reconfigure"):
@@ -68,30 +69,6 @@ def save_seen(seen: set) -> None:
     lst = list(seen)[-SEEN_MAX:]
     with open(SEEN_PATH, "w", encoding="utf-8") as f:
         json.dump(lst, f, ensure_ascii=False)
-
-
-def keyword_match(text: str, kw: str) -> bool:
-    """中文用子串匹配；纯 ASCII 关键词用「仅限 ASCII 字母数字」的边界匹配。
-
-    不能直接用 \\b：Python3 的 \\w 会把汉字也当作词字符，
-    导致 "美国FDA批准" 里 FDA 前后都被汉字夹住而匹配不到。
-    """
-    if not kw:
-        return False
-    if kw.isascii():
-        pat = r"(?<![A-Za-z0-9])" + re.escape(kw) + r"(?![A-Za-z0-9])"
-        return re.search(pat, text, re.I) is not None
-    return kw in text
-
-
-def match_themes(text: str, themes: list) -> list:
-    """返回 [(theme, hits)]，hits 为命中的关键词列表。"""
-    out = []
-    for th in themes:
-        hits = [kw for kw in (th.get("keywords") or []) if keyword_match(text, kw)]
-        if hits:
-            out.append((th, hits))
-    return out
 
 
 def fetch_new_items(enabled_sources: list | None) -> list:
@@ -173,6 +150,7 @@ def build_alert(item: dict, score: float, theme: dict, hits: list,
     lines = []
     lines.append(f"**主题**：{theme['name']}")
     lines.append(f"**命中关键词**：{' / '.join(hits)}")
+    lines.append(f"**影响分**：{item.get('impact', 0.0):.3f}")
     lines.append(f"**情绪分**：{score:+.3f}")
     lines.append(f"**来源**：{src}　**时间**：{ts}")
     lines.append(f"**原文**：{text}")
@@ -211,7 +189,7 @@ def build_ticker_alert(item: dict) -> tuple[str, str]:
 
 def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
              dry_run: bool, boards: dict, theme_boards: dict, top_n: int) -> int:
-    """一轮：抓取 -> 去重 -> 匹配 -> 告警。返回本轮新条目数。"""
+    """一轮：抓取 -> 去重 -> 影响分排序 -> 匹配 -> 告警。返回本轮新条目数。"""
     enabled = ((cfg.get("monitor") or {}).get("enabled_sources")
                or (cfg.get("news") or {}).get("enabled_sources") or None)
 
@@ -230,6 +208,14 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
         append_raw(new_items)
         return len(new_items)
 
+    # 影响分排序
+    imp_cfg = cfg.get("impact") or {}
+    weights = imp_cfg.get("weights") or None
+    window_minutes = int(imp_cfg.get("window_minutes", 60))
+    burst_cap = int(imp_cfg.get("burst_cap", 4))
+    impact_min = float((cfg.get("monitor") or {}).get("impact_min", 0.0))
+    new_items = compute_impact(new_items, themes, weights, window_minutes, burst_cap)
+
     alerts = 0
     for it in new_items:
         seen.add(it["id"])
@@ -247,9 +233,12 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
                     push_alert(cfg, title, content)
             continue
         text = f"{it.get('title', '')} {it.get('content', '')}"
-        score = score_text(text)
+        score = it.get("sentiment", score_text(text))
         matched = match_themes(text, themes)
         for theme, hits in matched:
+            imp = it.get("impact", 0.0)
+            if impact_min > 0 and imp < impact_min:
+                continue
             alerts += 1
             title, content = build_alert(it, score, theme, hits, boards, theme_boards, top_n)
             print("\n" + "=" * 60)
@@ -279,16 +268,19 @@ def main() -> int:
     args = ap.parse_args()
 
     cfg = load_config()
+    apply_primary_keys(cfg.get("primary") or {})
+    configure_backend(cfg)
     mon = cfg.get("monitor") or {}
     interval = args.interval or int(mon.get("poll_interval", 15))
     top_n = int(mon.get("top_constituents", 5))
     refresh_hours = int(mon.get("board_cache_refresh_hours", 24))
+    impact_min = float(mon.get("impact_min", 0.0))
     themes_path = mon.get("themes_path", "news_aggregator/themes.yaml")
     if not pathlib.Path(themes_path).is_absolute():
         themes_path = str(ROOT / themes_path)
 
     themes = load_themes(themes_path)
-    print(f"[monitor] 载入主题 {len(themes)} 个")
+    print(f"[monitor] 载入主题 {len(themes)} 个，impact_min={impact_min}")
 
     seen = load_seen()
     cold_start = not SEEN_PATH.exists()
@@ -317,7 +309,6 @@ def main() -> int:
     while True:
         try:
             run_once(cfg, themes, seen, False, args.dry_run, boards, theme_boards, top_n)
-            # 每日刷新板块缓存（按 24h 判断）
             time.sleep(interval)
         except KeyboardInterrupt:
             print("\n[monitor] 收到中断，保存状态后退出")
@@ -330,6 +321,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
 
 
