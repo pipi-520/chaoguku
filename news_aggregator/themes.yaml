@@ -10,7 +10,7 @@
 
 themes:
   - name: 创新药/疫苗
-    keywords: [抗癌, 肿瘤, 疫苗, mRNA, 创新药, 新药, 临床, 获批, FDA, 靶向, 基因治疗, 细胞治疗, 双抗, ADC, 抗癌药, 突破性疗法]
+    keywords: [抗癌, 肿瘤, 疫苗, mRNA, 创新药, 新药, 临床, 获批, FDA, 靶向, 基因治疗, 细胞治疗, 双抗, ADC, 抗癌药, 突破性疗法, cancer, vaccine, cure, therapy, oncology]
     concept_boards: [创新药, 疫苗, CRO, 生物制品, 单抗, 重组蛋白, 基因测序, 精准医疗, 医药]
     industry_boards: [生物制品, 化学制药, 医疗服务, 医疗器械]
     macro: false
@@ -67,4 +67,52 @@ themes:
     keywords: [机器人, 人形机器人, 减速器, 伺服, 机器视觉, 具身智能, 特斯拉机器人]
     concept_boards: [机器人, 人形机器人, 减速器, 机器视觉]
     industry_boards: [通用设备, 专用设备]
+    macro: false
+
+  - name: 白宫/贸易政策
+    keywords: [White House, 白宫, 特朗普, Trump, executive order, 行政令, tariff, tariffs, 关税, trade war, 贸易战, 制裁, sanction, 加征关税]
+    concept_boards: [军工, 黄金, 稀土永磁, 银行, 房地产]
+    industry_boards: [银行, 证券, 国防军工]
+    macro: true
+
+  - name: 国会/听证会
+    keywords: [Congress, 国会, hearing, 听证会, testimony, 作证, Senate, 参议院, House, 众议院, 立法, legislation, STOCK Act]
+    concept_boards: [军工, 黄金]
+    industry_boards: [银行, 证券]
+    macro: true
+
+  - name: 中国外交/地缘
+    keywords: [外交部, 中国外交部, 例行记者会, 发言人, 中方, MFA, 反制, 制裁, 地缘, geopolitics, 冲突, 边境, 南海, 台海]
+    concept_boards: [军工, 黄金, 稀土永磁, 有色]
+    industry_boards: [国防军工, 贵金属]
+    macro: true
+
+  - name: 央行/货币政策
+    keywords: [Fed, Federal Reserve, FOMC, rate cut, rate hike, 加息, 降息, 降准, LPR, ECB, BOJ, BOE, 央行, 中国人民银行, 点阵图, 会议纪要, Powell, 鲍威尔, 拉加德]
+    concept_boards: [银行, 券商, 黄金, 房地产]
+    industry_boards: [银行, 证券, 贵金属]
+    macro: true
+
+  - name: 美国宏观数据
+    keywords: [nonfarm, payrolls, CPI, PPI, unemployment, GDP, PCE, ISM, PMI, retail sales, durable goods, housing starts, 非农, 通胀, 失业率]
+    concept_boards: [黄金, 有色, 银行]
+    industry_boards: [银行, 贵金属]
+    macro: true
+
+  - name: 原油/商品
+    keywords: [EIA, crude, oil inventory, OPEC, IEA, 原油, 石油, 库存, 欧佩克]
+    concept_boards: [石油, 油气, 采掘, 油服]
+    industry_boards: [石油, 燃气]
+    macro: false
+
+  - name: 财报/公告
+    keywords: [earnings, 财报, 业绩, 营收, 净利润, 8-K, EDGAR, 公告, 预增, 预亏, 年报, 季报, 业绩预告]
+    concept_boards: [高送转, 业绩预增]
+    industry_boards: []
+    macro: false
+
+  - name: 资金流/市场情绪
+    keywords: [CFTC, COT, VIX, AAII, 北向, 北向资金, 沪深港通, 融资融券, put call ratio, 恐慌指数]
+    concept_boards: [券商, 互联金融]
+    industry_boards: [证券]
     macro: false

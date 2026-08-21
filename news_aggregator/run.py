@@ -21,10 +21,14 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from news_aggregator.fetchers import SOURCES, fetch_symbol_news  # noqa: E402
+from news_aggregator.fetchers import SOURCES, fetch_symbol_news, filter_recent  # noqa: E402
 from news_aggregator.sentiment import score_text  # noqa: E402
 from news_aggregator.tagger import tag  # noqa: E402
 from news_aggregator.push import push_alert  # noqa: E402
+
+# Windows 控制台编码兼容
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(errors='replace')
 
 NEWS_DIR = ROOT / "news"
 HISTORY_PATH = NEWS_DIR / "sentiment_history.json"
@@ -68,6 +72,8 @@ def compute_daily(items):
     market = {}
     per_sym = {}
     for it in items:
+        if it.get("lang") == "en" or it.get("kind") != "news":
+            continue
         d = it["date"]
         sc = score_text(f"{it.get('title', '')} {it.get('content', '')}")
         market.setdefault(d, []).append(sc)
@@ -216,6 +222,7 @@ def main() -> int:
         print(f"[fetch] 个股新闻: 失败 ({type(e).__name__})")
 
     items = dedupe(items)
+    items = filter_recent(items, days=30)
     items = tag(items, cfg["symbols"])
     print(f"[agg] 去重后 {len(items)} 条")
 
@@ -263,5 +270,9 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+
+
 
 

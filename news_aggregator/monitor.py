@@ -26,11 +26,15 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from news_aggregator.fetchers import SOURCES  # noqa: E402
+from news_aggregator.fetchers import SOURCES, filter_recent  # noqa: E402
 from news_aggregator.sentiment import score_text  # noqa: E402
 from news_aggregator.push import push_alert  # noqa: E402
 from news_aggregator.run import compute_daily, load_history, save_history, upsert_history  # noqa: E402
 from news_aggregator.boards import get_board_cache  # noqa: E402
+
+# Windows 控制台编码兼容（避免 emoji 等字符导致 print 崩溃）
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
 
 NEWS_DIR = ROOT / "news"
 SEEN_PATH = NEWS_DIR / "seen.json"
@@ -181,6 +185,30 @@ def build_alert(item: dict, score: float, theme: dict, hits: list,
     return title, "\n".join(lines)
 
 
+def _politician_allowed(pol: str, cfg: dict) -> bool:
+    watch = (cfg.get("politicians") or [])
+    if not watch:
+        return True
+    pol = (pol or "").lower()
+    return any(str(w).lower() in pol for w in watch)
+
+
+def build_ticker_alert(item: dict) -> tuple[str, str]:
+    kind_label = "国会交易" if item.get("kind") == "congress_trade" else "内部人交易"
+    pol = item.get("politician") or "未知"
+    ticker = item.get("ticker") or "-"
+    title = f"[{kind_label}] {pol} {ticker}"
+    lines = [
+        f"**类型**：{kind_label}",
+        f"**人物**：{pol}",
+        f"**标的**：{ticker}",
+        f"**内容**：{item.get('title') or ''}",
+        f"**日期**：{item.get('date') or ''}",
+        f"**来源**：{item.get('source') or ''}",
+    ]
+    return title, "\n".join(lines)
+
+
 def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
              dry_run: bool, boards: dict, theme_boards: dict, top_n: int) -> int:
     """一轮：抓取 -> 去重 -> 匹配 -> 告警。返回本轮新条目数。"""
@@ -192,7 +220,7 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
     uniq = {}
     for it in all_items:
         uniq.setdefault(it["id"], it)
-    new_items = [it for it in uniq.values() if it["id"] not in seen]
+    new_items = filter_recent([it for it in uniq.values() if it["id"] not in seen], days=30)
 
     if cold_start and new_items:
         print(f"[monitor] 首次运行：仅建立基线，跳过 {len(new_items)} 条历史消息，不告警")
@@ -205,6 +233,19 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
     alerts = 0
     for it in new_items:
         seen.add(it["id"])
+        # 另类数据（国会/内部人交易）→ ticker 告警，不参与主题词匹配
+        kind = it.get("kind")
+        if kind in ("congress_trade", "insider_trade") and it.get("ticker"):
+            if _politician_allowed(it.get("politician"), cfg):
+                alerts += 1
+                title, content = build_ticker_alert(it)
+                print("\n" + "=" * 60)
+                print(title)
+                print(content)
+                print("=" * 60 + "\n")
+                if not dry_run:
+                    push_alert(cfg, title, content)
+            continue
         text = f"{it.get('title', '')} {it.get('content', '')}"
         score = score_text(text)
         matched = match_themes(text, themes)
@@ -289,3 +330,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+

@@ -50,15 +50,7 @@ backtest:
 
 news:
   # 启用的快讯源（留空则全部启用）
-  enabled_sources:
-    - 财联社
-    - 东财全球资讯
-    - 新浪7x24
-    - 同花顺7x24
-    - 富途牛牛
-    - 华尔街见闻
-    - 金十快讯
-    - 政策公告
+  enabled_sources: []  # 留空=全部启用
   # 企业微信机器人 webhook：留空则读取环境变量 WECOM_WEBHOOK
   wecom_webhook: ""
 monitor:
@@ -78,3 +70,18 @@ monitor:
   telegram_token: ""             # 留空读 TELEGRAM_TOKEN
   telegram_chat_id: ""           # 留空读 TELEGRAM_CHAT_ID
   ntfy_topic: ""                 # 留空读 NTFY_TOPIC
+
+# 一手源可选密钥（留空读环境变量）
+primary:
+  ap_api_key: ""          # AP_API_KEY
+  congress_api_key: ""    # CONGRESS_API_KEY
+  quiver_token: ""        # QUIVER_TOKEN（Quiver 另类数据需要）
+  bargo_base_url: ""      # BARGO_BASE_URL（留空则跳过 Bargo）
+  bargo_api_key: ""       # BARGO_API_KEY
+  fred_api_key: ""        # FRED_API_KEY（美联储经济数据，可选）
+
+# 国会交易关注名单（留空=全部；命中才告警）
+politicians:
+  - Nancy Pelosi
+
+
