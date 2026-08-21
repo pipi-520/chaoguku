@@ -8,9 +8,12 @@ import os
 
 def send_wecom_markdown(webhook: str, content: str) -> bool:
     """向企业微信群机器人发送 markdown 消息；webhook 为空时仅打印（干跑）。"""
+    webhook = (webhook or "").strip()
     if not webhook:
         print("[push] 企业微信 webhook 未配置，干跑跳过")
         return False
+    if "://" not in webhook:
+        webhook = "https://" + webhook
     import requests
     payload = {"msgtype": "markdown", "markdown": {"content": content}}
     try:
@@ -116,3 +119,4 @@ def push_alert(cfg: dict, title: str, content: str) -> dict:
         results["ntfy"] = send_ntfy(topic, title, content)
 
     return results
+
