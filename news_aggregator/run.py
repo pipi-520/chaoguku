@@ -26,6 +26,8 @@ from news_aggregator.sentiment import score_text, configure_backend  # noqa: E40
 from news_aggregator.tagger import tag  # noqa: E402
 from news_aggregator.push import push_alert  # noqa: E402
 from news_aggregator.impact import compute_impact, DEFAULT_WEIGHTS  # noqa: E402
+from news_aggregator.summary import summarize_many, summarize_overview  # noqa: E402
+from news_aggregator.action import suggest, DISCLAIMER  # noqa: E402
 
 # Windows 控制台编码兼容
 if hasattr(sys.stdout, 'reconfigure'):
@@ -145,59 +147,52 @@ def rebuild_history_from_raw() -> dict:
     return h
 
 
-def build_report(day: str, items, stats, market, sym_out) -> str:
+def build_report(day: str, items, stats, market, sym_out, cfg: dict | None = None) -> str:
+    cfg = cfg or {}
+    ranked = sorted(items, key=lambda x: x.get("impact", 0.0), reverse=True)
+    top = ranked[:15]
+    headlines = [(it.get("title") or it.get("content") or "").strip() for it in top]
+
     lines = []
-    lines.append(f"# 财经新闻舆情日报 {day}")
+    lines.append(f"# 财经舆情日报 {day}")
     lines.append("")
-    lines.append(f"> 生成时间：{datetime.now():%Y-%m-%d %H:%M:%S}")
-    lines.append("> 数据来源：多源快讯 + 英文一手源（按影响分排序）")
-    lines.append("")
-    lines.append("## 数据源统计")
-    lines.append("")
-    lines.append("| 来源 | 条数 |")
-    lines.append("|---|---|")
-    for name, n in stats.items():
-        lines.append(f"| {name} | {n if n >= 0 else '失败'} |")
-    lines.append("")
-    lines.append(f"**去重后总计：{len(items)} 条**")
+    lines.append(f"> 生成时间：{datetime.now():%Y-%m-%d %H:%M:%S}　去重后 {len(items)} 条 / {len(stats)} 个源")
     lines.append("")
 
-    # 市场情绪
-    lines.append("## 市场情绪（最近）")
+    lines.append("## 今日综述")
+    lines.append("")
+    lines.append(summarize_overview(headlines, cfg.get("summary") or {}, cfg.get("sentiment") or {}))
+    lines.append("")
+
+    lines.append("## 市场情绪")
     lines.append("")
     if market:
-        lines.append("| 日期 | 情绪分 |")
-        lines.append("|---|---|")
-        for d in sorted(market, reverse=True)[:5]:
-            lines.append(f"| {d} | {market[d]:+.3f} |")
+        latest = sorted(market)[-1]
+        lines.append(f"最新市场情绪分 **{market[latest]:+.3f}**（{latest}）")
     else:
         lines.append("（无数据）")
     lines.append("")
 
-    # 个股情绪
     if sym_out:
-        lines.append("## 个股情绪（最新）")
+        lines.append("## 个股情绪")
         lines.append("")
-        lines.append("| 股票 | 最新情绪分 |")
-        lines.append("|---|---|")
         for s, dd in sorted(sym_out.items()):
             latest = sorted(dd)[-1] if dd else "-"
-            lines.append(f"| {s} | {dd[latest]:+.3f} ({latest}) |")
+            lines.append(f"- {s}：{dd[latest]:+.3f}")
         lines.append("")
 
-    # 影响最强新闻（按影响分排序，已在 main 中计算好）
-    ranked = sorted(items, key=lambda x: x.get("impact", 0.0), reverse=True)
-    lines.append("## 影响最强新闻 Top 15")
+    lines.append(f"## 影响最强 Top {len(top)}")
     lines.append("")
-    lines.append("| 影响分 | 情绪 | 来源 | 标题 |")
-    lines.append("|---|---|---|---|")
-    for it in ranked[:15]:
-        text = (it.get("title") or it.get("content") or "").strip()
-        text = text[:60].replace("|", "\\|") + ("…" if len(text) > 60 else "")
-        imp = it.get("impact", 0.0)
-        sc = it.get("sentiment", score_text(f"{it.get('title', '')} {it.get('content', '')}"))
-        lines.append(f"| {imp:.3f} | {sc:+.2f} | {it.get('source')} | {text} |")
+    summaries = summarize_many(headlines, cfg.get("summary") or {}, cfg.get("sentiment") or {}, sentiments=[float(it.get("sentiment", 0.0)) for it in top])
+    for i, (it, summ) in enumerate(zip(top, summaries), 1):
+        imp = float(it.get("impact", 0.0))
+        sc = float(it.get("sentiment", 0.0))
+        sug = suggest(imp, sc, cfg.get("action") or {})
+        src = it.get("source") or ""
+        lines.append(f"{i}. 【{sug['direction']}】{summ}（{src}）")
+        lines.append(f"   → 建议 {sug['action']} · 参考仓位 {sug['position']} · 影响 {imp:.2f} · 情绪 {sc:+.2f}")
     lines.append("")
+    lines.append(DISCLAIMER)
     return "\n".join(lines)
 
 
@@ -276,7 +271,7 @@ def main() -> int:
     print(f"[history] 累积历史 -> {HISTORY_PATH}"
           f"（市场 {len(history.get('market', {}))} 天 / 个股 {len(history.get('symbols', {}))} 只）")
 
-    md = build_report(args.date, items, stats, market, sym_out)
+    md = build_report(args.date, items, stats, market, sym_out, cfg)
     report_path = report_dir / f"{args.date}.md"
     report_path.write_text(md, encoding="utf-8")
     print(f"[agg] raw -> {raw_path}")
@@ -291,5 +286,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 

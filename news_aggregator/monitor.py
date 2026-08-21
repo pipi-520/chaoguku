@@ -32,6 +32,8 @@ from news_aggregator.push import push_alert  # noqa: E402
 from news_aggregator.run import compute_daily, load_history, save_history, upsert_history  # noqa: E402
 from news_aggregator.boards import get_board_cache  # noqa: E402
 from news_aggregator.impact import keyword_match, match_themes, compute_impact  # noqa: E402
+from news_aggregator.summary import summarize  # noqa: E402
+from news_aggregator.action import suggest, DISCLAIMER  # noqa: E402
 
 # Windows 控制台编码兼容（避免 emoji 等字符导致 print 崩溃）
 if hasattr(sys.stdout, "reconfigure"):
@@ -138,28 +140,32 @@ def fmt_boards(theme, hits, boards, theme_boards, top_n: int) -> list:
     return lines
 
 
-def build_alert(item: dict, score: float, theme: dict, hits: list,
+def build_alert(cfg: dict, item: dict, score: float, theme: dict, hits: list,
                 boards: dict, theme_boards: dict, top_n: int) -> tuple[str, str]:
-    title = f"[事件告警] {theme['name']}"
+    text = (item.get("title") or item.get("content") or "").strip()
+    lang = item.get("lang") or "zh"
+    impact = float(item.get("impact", 0.0))
+    summ = summarize(text, theme["name"], impact, score, lang,
+                     cfg.get("summary") or {}, cfg.get("sentiment") or {})
+    sug = suggest(impact, score, cfg.get("action") or {})
+
+    title = f"[{theme['name']}] {sug['direction']}"
     src = item.get("source") or ""
     ts = item.get("ts") or item.get("date") or ""
-    text = (item.get("title") or item.get("content") or "").strip()
-    if len(text) > 160:
-        text = text[:160] + "…"
 
     lines = []
-    lines.append(f"**主题**：{theme['name']}")
-    lines.append(f"**命中关键词**：{' / '.join(hits)}")
-    lines.append(f"**影响分**：{item.get('impact', 0.0):.3f}")
-    lines.append(f"**情绪分**：{score:+.3f}")
+    lines.append(f"**摘要**：{summ}")
+    lines.append(f"**方向**：{sug['direction']}　**建议**：{sug['action']}　**参考仓位**：{sug['position']}")
+    lines.append(f"**影响分** {impact:.3f} · **情绪分** {score:+.3f}")
     lines.append(f"**来源**：{src}　**时间**：{ts}")
-    lines.append(f"**原文**：{text}")
     if theme.get("macro"):
-        lines.append("**类型**：宏观事件（关注利率/避险相关板块）")
+        lines.append("**类型**：宏观事件")
     bl = fmt_boards(theme, hits, boards, theme_boards, top_n)
     if bl:
         lines.append("**相关板块**：")
         lines.extend(bl)
+    lines.append("")
+    lines.append(DISCLAIMER)
     return title, "\n".join(lines)
 
 
@@ -171,18 +177,21 @@ def _politician_allowed(pol: str, cfg: dict) -> bool:
     return any(str(w).lower() in pol for w in watch)
 
 
-def build_ticker_alert(item: dict) -> tuple[str, str]:
+def build_ticker_alert(cfg: dict, item: dict) -> tuple[str, str]:
     kind_label = "国会交易" if item.get("kind") == "congress_trade" else "内部人交易"
     pol = item.get("politician") or "未知"
     ticker = item.get("ticker") or "-"
     title = f"[{kind_label}] {pol} {ticker}"
+    summ = summarize(item.get("title") or "", kind_label, item.get("impact", 0.0),
+                     item.get("sentiment", 0.0), item.get("lang") or "zh",
+                     cfg.get("summary") or {}, cfg.get("sentiment") or {})
     lines = [
-        f"**类型**：{kind_label}",
-        f"**人物**：{pol}",
-        f"**标的**：{ticker}",
-        f"**内容**：{item.get('title') or ''}",
-        f"**日期**：{item.get('date') or ''}",
-        f"**来源**：{item.get('source') or ''}",
+        f"**摘要**：{summ}",
+        f"**人物**：{pol}　**标的**：{ticker}",
+        f"**日期**：{item.get('date') or ''}　**来源**：{item.get('source') or ''}",
+        f"**建议**：跟踪关注",
+        "",
+        DISCLAIMER,
     ]
     return title, "\n".join(lines)
 
@@ -224,7 +233,7 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
         if kind in ("congress_trade", "insider_trade") and it.get("ticker"):
             if _politician_allowed(it.get("politician"), cfg):
                 alerts += 1
-                title, content = build_ticker_alert(it)
+                title, content = build_ticker_alert(cfg, it)
                 print("\n" + "=" * 60)
                 print(title)
                 print(content)
@@ -240,7 +249,7 @@ def run_once(cfg: dict, themes: list, seen: set, cold_start: bool,
             if impact_min > 0 and imp < impact_min:
                 continue
             alerts += 1
-            title, content = build_alert(it, score, theme, hits, boards, theme_boards, top_n)
+            title, content = build_alert(cfg, it, score, theme, hits, boards, theme_boards, top_n)
             print("\n" + "=" * 60)
             print(title)
             print(content)
