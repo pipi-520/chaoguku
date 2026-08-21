@@ -27,6 +27,8 @@ jobs:
         env:
           WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
           SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          QUIVER_TOKEN: ${{ secrets.QUIVER_TOKEN }}
 
       - name: Commit news data
         run: |
@@ -39,4 +41,5 @@ jobs:
             git commit -m "chore: update news aggregation $(date +%F)"
             git push
           fi
+
 
