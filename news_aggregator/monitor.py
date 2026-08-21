@@ -306,9 +306,11 @@ def main() -> int:
         run_once(cfg, themes, seen, cold_start, args.dry_run, boards, theme_boards, top_n)
         return 0
 
+    first = True
     while True:
         try:
-            run_once(cfg, themes, seen, False, args.dry_run, boards, theme_boards, top_n)
+            run_once(cfg, themes, seen, cold_start and first, args.dry_run, boards, theme_boards, top_n)
+            first = False
             time.sleep(interval)
         except KeyboardInterrupt:
             print("\n[monitor] 收到中断，保存状态后退出")
