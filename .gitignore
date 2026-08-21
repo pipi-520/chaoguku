@@ -5,4 +5,6 @@ __pycache__/
 *.pyc
 .DS_Store
 paper/
-
+# 监测器运行时状态（不提交）
+news/seen.json
+news/boards_cache.json

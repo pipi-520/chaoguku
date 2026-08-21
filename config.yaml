@@ -45,7 +45,7 @@ backtest:
   rate: 0.0003               # 佣金费率（按成交额）
   slippage: 0.01             # 滑点（每股/每份）
   pricetick: 0.01            # 最小价格变动
-  use_synthetic_sentiment: true   # 回测用合成情绪序列(演示策略机制)；false 用真实新闻情绪
+  use_synthetic_sentiment: false   # 回测用合成情绪序列(演示策略机制)；false 用真实新闻情绪
 
 
 news:
@@ -61,3 +61,20 @@ news:
     - 政策公告
   # 企业微信机器人 webhook：留空则读取环境变量 WECOM_WEBHOOK
   wecom_webhook: ""
+monitor:
+  poll_interval: 15              # 轮询秒数（10-60）
+  enabled_sources: []            # 留空则用 news.enabled_sources
+  themes_path: "news_aggregator/themes.yaml"
+  top_constituents: 5            # 告警里展示每个板块前几只成分股
+  board_cache_refresh_hours: 24  # 板块成分股缓存刷新周期
+  # 推送开关（密钥留空则读取对应环境变量，见 push.py）
+  push:
+    wecom: true
+    serverchan: true
+    telegram: false
+    ntfy: false
+  wecom_webhook: ""              # 企业微信，留空读 WECOM_WEBHOOK
+  serverchan_sendkey: ""         # Server酱，留空读 SERVERCHAN_SENDKEY
+  telegram_token: ""             # 留空读 TELEGRAM_TOKEN
+  telegram_chat_id: ""           # 留空读 TELEGRAM_CHAT_ID
+  ntfy_topic: ""                 # 留空读 NTFY_TOPIC

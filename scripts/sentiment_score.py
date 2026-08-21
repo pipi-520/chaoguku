@@ -1,8 +1,9 @@
 """新闻情绪打分 + 合成情绪序列生成。
 
-数据来源优先级：
-  1. 若存在 news/daily_sentiment.json（多源聚合器产出），直接使用其市场+个股情绪分；
-  2. 否则回退到 akshare 单点抓取（个股新闻 + 东财全球资讯市场情绪）。
+数据源优先级（就高到低，同日后者覆盖前者）：
+  个股情绪：history[symbols] -> daily_sentiment[symbols] -> akshare 个股新闻(近100条, 多日)
+  市场情绪：history[market]    -> daily_sentiment[market]  -> akshare 东财全球资讯
+最终个股情绪 = 市场情绪打底 + 个股情绪覆盖。
 另生成确定性合成情绪序列用于历史回测演示。
 
 用法（在项目根目录执行）：
@@ -47,17 +48,39 @@ def df_from_dict(d: dict) -> pd.DataFrame:
     return pd.DataFrame({"date": list(d.keys()), "score": list(d.values())})
 
 
-def load_aggregated_daily() -> dict | None:
-    """读取聚合器产物，返回 {symbol: DataFrame(date,score), 'market': DataFrame} 或 None。"""
+def load_history() -> dict | None:
+    p = NEWS_DIR / "sentiment_history.json"
+    if not p.exists():
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_single_daily() -> dict | None:
     p = NEWS_DIR / "daily_sentiment.json"
     if not p.exists():
         return None
     with open(p, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    out = {"market": df_from_dict(data.get("market", {}))}
-    for sym, dd in (data.get("symbols") or {}).items():
-        out[sym] = df_from_dict(dd)
-    return out
+        return json.load(f)
+
+
+def merge_score_dfs(*dfs) -> pd.DataFrame:
+    """按日期合并多个 date/score DataFrame，同日后者覆盖前者。"""
+    out = None
+    for df in dfs:
+        if df is None or df.empty:
+            continue
+        d = df[["date", "score"]].copy()
+        d["score"] = pd.to_numeric(d["score"], errors="coerce")
+        if out is None:
+            out = d
+        else:
+            merged = out.merge(d, on="date", how="outer", suffixes=("", "_y"))
+            merged["score"] = merged["score_y"].fillna(merged["score"])
+            out = merged[["date", "score"]]
+    if out is None:
+        return pd.DataFrame(columns=["date", "score"])
+    return out.dropna(subset=["score"]).reset_index(drop=True)
 
 
 def news_to_daily(df, title_col, content_col, date_col) -> pd.DataFrame:
@@ -129,43 +152,61 @@ def generate_synthetic(days: list, seed: int) -> pd.DataFrame:
     return pd.DataFrame({"date": days, "score": s})
 
 
+def build_market_daily(history, single) -> pd.DataFrame:
+    frames = []
+    if history:
+        frames.append(df_from_dict(history.get("market", {})))
+    if single:
+        frames.append(df_from_dict(single.get("market", {})))
+    market = merge_score_dfs(*frames)
+    if market.empty:
+        print("[sentiment] 无历史市场情绪，回退到东财全球资讯实时抓取 ...")
+        market = fetch_market_daily()
+    return market
+
+
 def main() -> int:
     cfg = load_config()
     DATA_DIR.mkdir(exist_ok=True)
 
-    agg = load_aggregated_daily()
-    if agg is not None:
-        print(f"[sentiment] 使用聚合器 {NEWS_DIR / 'daily_sentiment.json'}"
-              f"（市场 {len(agg.get('market', []))} 天 / 个股 {len(agg) - 1} 只）")
-        market_daily = None
+    history = load_history()
+    single = load_single_daily()
+    if history is not None:
+        print(f"[sentiment] 使用历史情绪库（市场 {len(history.get('market', {}))} 天"
+              f" / 个股 {len(history.get('symbols', {}))} 只）")
+    elif single is not None:
+        print("[sentiment] 使用当日快照 daily_sentiment.json")
     else:
         print("[sentiment] 未找到聚合结果，回退到 akshare 单点抓取")
-        print("[sentiment] 抓取东财全球资讯（市场情绪）...")
-        market_daily = fetch_market_daily()
+
+    market_daily = build_market_daily(history, single)
 
     for item in cfg["symbols"]:
         sym = item["symbol"]
         print(f"[sentiment] {item['name']}({sym}) ...")
 
-        if agg is not None:
-            daily = agg.get(sym)
-            if daily is None or daily.empty:
-                daily = agg.get("market", pd.DataFrame(columns=["date", "score"]))
-        else:
-            per = fetch_symbol_daily(item["code"]) if item["market"] == "cn" else pd.DataFrame(columns=["date", "score"])
-            if per.empty:
-                daily = market_daily
-            else:
-                m = market_daily.rename(columns={"score": "score_m"})
-                p = per.rename(columns={"score": "score_p"})
-                merged = m.merge(p, on="date", how="outer")
-                merged["score"] = merged["score_p"].fillna(merged["score_m"])
-                daily = merged[["date", "score"]]
+        # 个股情绪来源（后者覆盖前者）
+        sym_frames = []
+        if history:
+            sym_frames.append(df_from_dict((history.get("symbols") or {}).get(sym, {})))
+        if single:
+            sym_frames.append(df_from_dict((single.get("symbols") or {}).get(sym, {})))
+        if item["market"] == "cn":
+            per = fetch_symbol_daily(item["code"])
+            if not per.empty:
+                sym_frames.append(per)
+                print(f"  个股新闻直抓 {len(per)} 天")
+        sym_daily = merge_score_dfs(*sym_frames)
 
+        # 个股覆盖市场，缺失日沿用最近一次
+        daily = merge_score_dfs(market_daily, sym_daily)
         final = reindex_to_trading_days(daily, sym)
         out = DATA_DIR / f"sentiment_{sym}.csv"
         final.to_csv(out, index=False, encoding="utf-8-sig")
-        print(f"  真实情绪 {len(final)} 天 -> {out.name}")
+        n_pos = int((final["score"] > 0).sum())
+        n_neg = int((final["score"] < 0).sum())
+        n_nz = n_pos + n_neg
+        print(f"  真实情绪 {len(final)} 天（非零 {n_nz}：正 {n_pos} / 负 {n_neg}）-> {out.name}")
 
         seed = sum(ord(c) for c in sym)
         synth = generate_synthetic(final["date"].tolist(), seed)

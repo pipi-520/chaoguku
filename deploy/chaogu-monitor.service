@@ -1,0 +1,16 @@
+[Unit]
+Description=chaogu realtime news event monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/chaogu
+ExecStart=/opt/chaogu/.venv/bin/python news_aggregator/monitor.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/opt/chaogu/.env
+
+[Install]
+WantedBy=multi-user.target

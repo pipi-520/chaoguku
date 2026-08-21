@@ -1,0 +1,70 @@
+# 精选主题事件库：事件关键词 -> A股概念/行业板块
+#
+# 设计：
+#   - keywords: 命中任意一个即触发该主题告警（中英文、大小写不敏感）。
+#   - concept_boards / industry_boards: 板块名「子串模式」，运行时用
+#     stock_board_concept_name_em / stock_board_industry_name_em 拉全量板块名对齐，
+#     匹配到包含该子串的真实板块即纳入（避免硬编码板名失效）。
+#   - macro: true 表示宏观事件（如美联储利率），不依赖个股新闻。
+#   - 新增主题只需在下面加一个条目，无需改代码。
+
+themes:
+  - name: 创新药/疫苗
+    keywords: [抗癌, 肿瘤, 疫苗, mRNA, 创新药, 新药, 临床, 获批, FDA, 靶向, 基因治疗, 细胞治疗, 双抗, ADC, 抗癌药, 突破性疗法]
+    concept_boards: [创新药, 疫苗, CRO, 生物制品, 单抗, 重组蛋白, 基因测序, 精准医疗, 医药]
+    industry_boards: [生物制品, 化学制药, 医疗服务, 医疗器械]
+    macro: false
+
+  - name: 美联储利率
+    keywords: [美联储, 加息, 降息, FOMC, 利率决议, 鲍威尔, 点阵图, 非农, CPI, PPI, 通胀, 缩表, 量化宽松, 加息预期, 降息预期, 基准利率]
+    concept_boards: [黄金, 有色, 稀土永磁, 银行, 券商, 房地产]
+    industry_boards: [银行, 证券, 房地产, 贵金属]
+    macro: true
+
+  - name: 半导体/芯片
+    keywords: [半导体, 芯片, 光刻, 国产替代, 制裁, 出口管制, 晶圆, 封测, 台积电, 英伟达, ASML, 光刻机, 集成电路]
+    concept_boards: [半导体, 芯片, 光刻胶, 第三代半导体, 中芯国际, 集成电路, 国产芯片]
+    industry_boards: [半导体, 电子元件]
+    macro: false
+
+  - name: AI/算力
+    keywords: [人工智能, AI, 大模型, 算力, 英伟达, ChatGPT, GPT, 智能体, 机器学习, 数据中心, 东数西算, 多模态]
+    concept_boards: [人工智能, AIGC, ChatGPT, 算力, CPO, 东数西算, 数据中心, 云计算]
+    industry_boards: [计算机设备, 通信设备]
+    macro: false
+
+  - name: 新能源/锂电/光伏
+    keywords: [新能源, 锂电, 锂电池, 光伏, 储能, 氢能, 碳酸锂, 固态电池, 钠电池, 风电, 储能电池]
+    concept_boards: [锂电池, 光伏, 储能, 氢能源, 宁德时代, 新能源, 固态电池]
+    industry_boards: [电池, 光伏设备, 风电设备]
+    macro: false
+
+  - name: 黄金/避险
+    keywords: [黄金, 避险, 金价, 地缘, 冲突, 战争, 制裁, 央行购金, 避险资产]
+    concept_boards: [黄金, 贵金属, 有色]
+    industry_boards: [贵金属]
+    macro: false
+
+  - name: 房地产
+    keywords: [房地产, 地产, 楼市, 房贷, 首付, 限购, 城中村, 保障房, 房住不炒, 松绑]
+    concept_boards: [房地产, 房地产服务, 租售同权]
+    industry_boards: [房地产开发, 房地产服务]
+    macro: false
+
+  - name: 券商/金融
+    keywords: [券商, 证券, 牛市, 成交额, 印花税, 大金融, 保险, 银行, 并购重组]
+    concept_boards: [券商, 大金融, 互联金融, 参股券商]
+    industry_boards: [证券, 保险, 银行]
+    macro: false
+
+  - name: 军工
+    keywords: [军工, 国防, 军演, 演习, 导弹, 航天, 航空, 航母, 军贸, 国防预算]
+    concept_boards: [军工, 国防军工, 航天, 航空发动机, 大飞机]
+    industry_boards: [航天航空, 船舶制造]
+    macro: false
+
+  - name: 机器人
+    keywords: [机器人, 人形机器人, 减速器, 伺服, 机器视觉, 具身智能, 特斯拉机器人]
+    concept_boards: [机器人, 人形机器人, 减速器, 机器视觉]
+    industry_boards: [通用设备, 专用设备]
+    macro: false

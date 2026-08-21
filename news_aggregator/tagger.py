@@ -22,12 +22,18 @@ def build_matchers(symbols_cfg):
 
 
 def tag(items, symbols_cfg):
-    """为每条新闻填充 symbols 字段（命中的股票 symbol 列表）。"""
+    """为每条新闻填充 symbols 字段（命中的股票 symbol 列表）。
+
+    保留已存在的 symbols（例如 fetch_symbol_news 已精确打上的标签），
+    只做并集，避免被文本匹配覆盖丢失。
+    """
     matchers = build_matchers(symbols_cfg)
     for it in items:
         text = f"{it.get('title', '')} {it.get('content', '')}"
-        hit = []
+        hit = list(it.get("symbols") or [])
         for sym, keys in matchers:
+            if sym in hit:
+                continue
             matched = False
             for kw, is_ticker in keys:
                 if not kw:

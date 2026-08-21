@@ -1,11 +1,12 @@
 """多源新闻/舆情聚合器主入口。
 
 用法（在项目根目录执行）：
-    .venv/Scripts/python.exe news_aggregator/run.py [--date YYYYMMDD] [--push]
+    .venv/Scripts/python.exe news_aggregator/run.py [--date YYYYMMDD] [--push] [--rebuild-history]
 
 输出：
     news/raw/{date}.jsonl            原始新闻（每行一条 JSON）
-    news/daily_sentiment.json        每日情绪分（市场 + 个股）
+    news/daily_sentiment.json        当日情绪分（市场 + 个股，快照）
+    news/sentiment_history.json      历史情绪分（按日期累积，可回测）
     news/report/{date}.md            日报
 """
 
@@ -13,7 +14,6 @@ import argparse
 import json
 import pathlib
 import sys
-from collections import defaultdict
 from datetime import date, datetime
 
 import yaml
@@ -27,6 +27,7 @@ from news_aggregator.tagger import tag  # noqa: E402
 from news_aggregator.push import send_wecom_markdown, get_webhook  # noqa: E402
 
 NEWS_DIR = ROOT / "news"
+HISTORY_PATH = NEWS_DIR / "sentiment_history.json"
 
 
 def load_config() -> dict:
@@ -64,20 +65,68 @@ def dedupe(items):
 
 
 def compute_daily(items):
-    market = defaultdict(list)
-    per_sym = defaultdict(lambda: defaultdict(list))
+    market = {}
+    per_sym = {}
     for it in items:
         d = it["date"]
         sc = score_text(f"{it.get('title', '')} {it.get('content', '')}")
-        market[d].append(sc)
+        market.setdefault(d, []).append(sc)
         for s in it.get("symbols", []):
-            per_sym[s][d].append(sc)
+            per_sym.setdefault(s, {}).setdefault(d, []).append(sc)
     market_out = {d: round(sum(v) / len(v), 4) for d, v in market.items()}
     sym_out = {
         s: {d: round(sum(v) / len(v), 4) for d, v in dd.items()}
         for s, dd in per_sym.items()
     }
     return market_out, sym_out
+
+
+def load_history() -> dict:
+    if HISTORY_PATH.exists():
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"market": {}, "symbols": {}}
+
+
+def save_history(h: dict) -> None:
+    NEWS_DIR.mkdir(exist_ok=True)
+    with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+        json.dump(h, f, ensure_ascii=False, indent=2)
+
+
+def upsert_history(h: dict, market: dict, sym_out: dict) -> dict:
+    """把一次聚合结果按日期并入历史（同日覆盖更新）。"""
+    for d, v in market.items():
+        h.setdefault("market", {})[d] = v
+    for s, dd in sym_out.items():
+        for d, v in dd.items():
+            h.setdefault("symbols", {}).setdefault(s, {})[d] = v
+    return h
+
+
+def rebuild_history_from_raw() -> dict:
+    """从 news/raw/*.jsonl 全量重算历史情绪（源数据为准）。"""
+    h = {"market": {}, "symbols": {}}
+    raw_dir = NEWS_DIR / "raw"
+    if not raw_dir.exists():
+        return h
+    for path in sorted(raw_dir.glob("*.jsonl")):
+        items = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        if not items:
+            continue
+        items = dedupe(items)
+        market, sym_out = compute_daily(items)
+        upsert_history(h, market, sym_out)
+        print(f"[history] 重算 {path.name}: 市场 {len(market)} 天 / 个股 {len(sym_out)} 只")
+    return h
 
 
 def build_report(day: str, items, stats, market, sym_out) -> str:
@@ -139,7 +188,17 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=date.today().strftime("%Y%m%d"))
     ap.add_argument("--push", action="store_true")
+    ap.add_argument("--rebuild-history", action="store_true",
+                    help="从 news/raw/*.jsonl 全量重算历史情绪，不重新抓取")
     args = ap.parse_args()
+
+    if args.rebuild_history:
+        h = rebuild_history_from_raw()
+        save_history(h)
+        n_mkt = len(h.get("market", {}))
+        n_sym = len(h.get("symbols", {}))
+        print(f"[history] 已重建: 市场 {n_mkt} 天 / 个股 {n_sym} 只 -> {HISTORY_PATH}")
+        return 0
 
     cfg = load_config()
     enabled = (cfg.get("news") or {}).get("enabled_sources") or None
@@ -182,6 +241,13 @@ def main() -> int:
     with open(NEWS_DIR / "daily_sentiment.json", "w", encoding="utf-8") as f:
         json.dump(daily, f, ensure_ascii=False, indent=2)
 
+    # 累积历史情绪
+    history = load_history()
+    history = upsert_history(history, market, sym_out)
+    save_history(history)
+    print(f"[history] 累积历史 -> {HISTORY_PATH}"
+          f"（市场 {len(history.get('market', {}))} 天 / 个股 {len(history.get('symbols', {}))} 只）")
+
     md = build_report(args.date, items, stats, market, sym_out)
     report_path = report_dir / f"{args.date}.md"
     report_path.write_text(md, encoding="utf-8")
@@ -197,4 +263,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

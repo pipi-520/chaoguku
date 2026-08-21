@@ -1,0 +1,12 @@
+services:
+  monitor:
+    build: .
+    restart: unless-stopped
+    environment:
+      WECOM_WEBHOOK: ${WECOM_WEBHOOK:-}
+      SERVERCHAN_SENDKEY: ${SERVERCHAN_SENDKEY:-}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+    volumes:
+      - ./news:/app/news
